@@ -1,7 +1,6 @@
 /*
  * Date: 26/2/2024
- * Data Engineer: @fabianiniprz
- * 
+ *
  * Overall: this code dynamically selects a subset of columns based on a reference column name 
  * 			and then retrieves those specific columns from the target table.
  * 
@@ -9,8 +8,10 @@
  * 			- Asigne your table name to the table_name variable
  * 			- Asigne the column name that you want to split your table (the code will only take the columns before the split column)
  * 
- * github: https://github.com/fabianiniprz1
- * linkedin: https://www.linkedin.com/in/fabian-andres-benavides-labiano-3980bb48/
+ * Data Engineer: 	Fabian Benavides
+ * email: 			fabianiniprz@icloud.com
+ * github: 			https://github.com/fabianiniprz1
+ * linkedin: 		https://www.linkedin.com/in/fabian-andres-benavides-labiano-3980bb48/
  * 
  * */
 
@@ -56,7 +57,7 @@ ORDINAL_POSITION <
 set
 	@Columns = (
 	select
-		'""' + COLUMN_NAME + '",', -- Concatenate double quotes and column name with a comma
+		'"' + COLUMN_NAME + '",', -- Concatenate double quotes and column name with a comma
 	from
 		##Column_names for xml path (''))
 
