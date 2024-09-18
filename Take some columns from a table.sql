@@ -26,17 +26,15 @@ set @table_name		= 'your_table_name'
 set @split_column	= 'your_column_name'
 
 -- Check if temporary table exists and drop it if necessary
-if exists (select 1 from tempdb.sys.objects where name like '##Column_names%')
-begin
-	drop table ##Column_names; -- Drop temporary table ##Column_names
-end
+
+if OBJECT_ID('tempdb..#Column_names) is not null drop table #Column_names;
 
 -- Select column names and positions into a temporary table
 select
 	COLUMN_NAME,
 	ORDINAL_POSITION
 into
-	##Column_names
+	#Column_names
 from
 	INFORMATION_SCHEMA.COLUMNS c
 where
@@ -59,7 +57,7 @@ set
 	select
 		'"' + COLUMN_NAME + '",', -- Concatenate double quotes and column name with a comma
 	from
-		##Column_names for xml path (''))
+		#Column_names for xml path (''))
 
 -- Remove the trailing comma from the list
 set
