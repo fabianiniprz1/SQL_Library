@@ -14,13 +14,13 @@
  * 		
  * 		3. **Populating Temporary Tables:**
  * 		   - It uses dynamic SQL to unpivot the data from the main table. Unpivoting rearranges data from rows to columns, making it easier to work with specific question-answer pairs, sections, etc.
- * 		   - It populates temporary tables (`##Column_questions`, `##Column_sectionname`, etc.) with the unpivoted data, joining with the column names table for clarity.
+ * 		   - It populates temporary tables (`#Column_questions`, `#Column_sectionname`, etc.) with the unpivoted data, joining with the column names table for clarity.
  * 		
  * 		4. **Finding Section Start Positions:**
  * 		   - It identifies the ordinal position of the first section name column relative to question columns.
  * 		
  * 		5. **Building the Final Output Table:**
- * 		   - It builds a final table named `##final_table` containing the desired information:
+ * 		   - It builds a final table named `#final_table` containing the desired information:
  * 		     - Ticket number
  * 		     - Question
  * 		     - Answer (assuming one answer per question)
@@ -63,18 +63,15 @@ declare @table_name           varchar(500)  -- Name of the table to process
 SET @table_name = 'QA_Table'
 SET @standard_column = 'Split_column_QA'
 
--- Check if temporary table ##Column_names already exists and drop it if so
-if exists ( SELECT 1 FROM tempdb.sys.objects WHERE name like '##Column_names%')
-begin
-    drop table ##Column_names
-end
+-- Check if temporary table #Column_names already exists and drop it if so
+if OBJECT_ID('tempdb..#Column_names') is not null drop table #Column_names;
 
 -- Get a list of column names and their ordinal positions from the table
 select
     COLUMN_NAME
   , ORDINAL_POSITION
 into
-    ##Column_names  -- Temporary table to store column information
+    #Column_names  -- Temporary table to store column information
 from
     INFORMATION_SCHEMA.COLUMNS c
 where
@@ -92,15 +89,15 @@ and
     )
 
 -- Find the minimum and maximum ordinal positions for question, section name, etc. columns
-SET @MIN = ( SELECT min(ORDINAL_POSITION) FROM ##Column_names WHERE COLUMN_name like '%sectionname%')
-SET @MAX = ( SELECT max(ORDINAL_POSITION) from ##Column_names WHERE COLUMN_name like '%Remarks%')
+SET @MIN = ( SELECT min(ORDINAL_POSITION) FROM #Column_names WHERE COLUMN_name like '%sectionname%')
+SET @MAX = ( SELECT max(ORDINAL_POSITION) from #Column_names WHERE COLUMN_name like '%Remarks%')
 
 -- Build comma-separated lists of question, section name, etc. columns using dynamic SQL
 set @Column_questions = (
     select
         '"' + COLUMN_NAME + '",'  -- Enclose each column name in double quotes
     from
-        ##Column_names
+        #Column_names
     where
         ORDINAL_POSITION between @MIN and @MAX  -- Select columns within the identified range
         and COLUMN_name not like '%sectionname%'  -- Exclude section name column
@@ -113,7 +110,7 @@ set @Column_sectionname = (
     select
         '"' + COLUMN_NAME + '",'
     from
-        ##Column_names
+        #Column_names
     where
         ORDINAL_POSITION between @MIN and @MAX
         and COLUMN_name like '%sectionname%'
@@ -123,7 +120,7 @@ set @Column_failureReason = (
     select
         '"' + COLUMN_NAME + '",'
     from
-        ##Column_names
+        #Column_names
     where
         ORDINAL_POSITION between @MIN and @MAX
         and COLUMN_name like '%ailureReason%'
@@ -133,7 +130,7 @@ set @Column_Remarks = (
     select
         '"' + COLUMN_NAME + '",'
     from
-        ##Column_names
+        #Column_names
     where
         ORDINAL_POSITION between @MIN and @MAX
         and COLUMN_name like '%emarks%'
@@ -150,30 +147,15 @@ SET @Column_Remarks 		= ( SELECT left(@Column_Remarks, LEN(@Column_Remarks) -1))
 SET @Column_questions = replace(@Column_questions,'&amp;','&')  -- Replace '&amp;' with '&'
 
 -- Drop temporary tables if they already exist (for cleanliness)
-if exists ( SELECT 1 FROM tempdb.sys.objects WHERE name like '##Column_questions%')
-begin
-    drop table ##Column_questions
-end
+if OBJECT_ID('tempdb..#Column_questions') is not null drop table #Column_questions;
 
-if exists ( SELECT 1 FROM tempdb.sys.objects WHERE name like '##Column_sectionname%')
-begin
-    drop table ##Column_sectionname
-end
+if OBJECT_ID('tempdb..#Column_sectionname') is not null drop table #Column_sectionname;
 
-if exists ( SELECT 1 FROM tempdb.sys.objects WHERE name like '##Column_failureReason%')
-begin
-    drop table ##Column_failureReason
-end
+if OBJECT_ID('tempdb..#Column_failureReason') is not null drop table #Column_failureReason
 
-if exists ( SELECT 1 FROM tempdb.sys.objects WHERE name like '##Column_Remarks%')
-begin
-    drop table ##Column_Remarks
-end
+if OBJECT_ID('tempdb..#Column_Remarks') is not null drop table #Column_Remarks;
 
-if exists ( SELECT 1 FROM tempdb.sys.objects WHERE name like '##column_ordinal_position_sectionName%')
-begin
-    drop table ##column_ordinal_position_sectionName
-end
+if OBJECT_ID('tempdb..#column_ordinal_position_sectionName') is not null drop table #column_ordinal_position_sectionName;
 
 -- Use dynamic SQL to populate temporary tables with un pivoted data
 exec (
@@ -181,7 +163,7 @@ exec (
     a.*
   ,b.ORDINAL_POSITION
 into 
-    ##Column_questions
+    #Column_questions
 from 
     (select 
         Ticket_Number
@@ -190,7 +172,7 @@ from
         + @table_name + ') as p
     unpivot (answer for question in (' + @Column_questions + ')) as unpvt1) a
     inner join
-        ##Column_names b
+        #Column_names b
     on a.question = b.COLUMN_NAME'  -- Join with column names table
 )
 
@@ -201,7 +183,7 @@ exec (  -- For section names
     a.*
   ,b.ORDINAL_POSITION
 into 
-    ##Column_sectionname
+    #Column_sectionname
 from 
     (select 
         Ticket_Number
@@ -210,7 +192,7 @@ from
         + @table_name + ') as p
     unpivot (sectionname for section in (' + @Column_sectionname + ')) as unpvt2) a
   inner join
-        ##Column_names b
+        #Column_names b
     on a.section = b.COLUMN_NAME'
 )
 
@@ -222,21 +204,18 @@ select
     a.ORDINAL_POSITION
   ,max(b.ORDINAL_POSITION) ordinal_section_name
 into
-    ##column_ordinal_position_sectionName
+    #column_ordinal_position_sectionName
 from
-    ##Column_questions a
+    #Column_questions a
 inner join
-    ##Column_sectionname b
+    #Column_sectionname b
 on
     a.ORDINAL_POSITION > b.ORDINAL_POSITION  -- Find sections following questions
 group by
     a.ORDINAL_POSITION
 
 -- Drop temporary table if it already exists
-if exists ( SELECT 1 FROM tempdb.sys.objects WHERE name like '##final_table%')
-begin
-    drop table ##final_table
-end
+if OBJECT_ID('tempdb..#final_table') is not null drop table #final_table;
 
 -- Build the final output table with questions, sections, failure reasons, and remarks
 select
@@ -249,24 +228,24 @@ select
   ,b.failureReason
   ,c.Remark
 into
-    ##final_table  -- Final table holding processed data
+    #final_table  -- Final table holding processed data
 from
-    ##Column_questions a
+    #Column_questions a
 left join
-    ##column_ordinal_position_sectionName xtz  -- Join with section position info
+    #column_ordinal_position_sectionName xtz  -- Join with section position info
 on
     a.ORDINAL_POSITION = xtz.ORDINAL_POSITION
 left join
-    ##Column_sectionname x  -- Join with section names table
+    #Column_sectionname x  -- Join with section names table
 on
     xtz.ordinal_section_name = x.ORDINAL_POSITION
 left join
-    ##Column_failureReason b  -- Join with failure reasons table
+    #Column_failureReason b  -- Join with failure reasons table
 on
     a.Ticket_Number = b.Ticket_Number
 and a.ORDINAL_POSITION = (b.ORDINAL_POSITION)-1  -- Match failure reason to previous question
 left join
-    ##Column_Remarks c  -- Join with remarks table
+    #Column_Remarks c  -- Join with remarks table
 on
     a.Ticket_Number = c.Ticket_Number
 and a.ORDINAL_POSITION = (c.ORDINAL_POSITION)-2  -- Match remark to the question before failure reason
@@ -275,4 +254,4 @@ and a.ORDINAL_POSITION = (c.ORDINAL_POSITION)-2  -- Match remark to the question
 select
 	*
 from
-	##final_table
+	#final_table
